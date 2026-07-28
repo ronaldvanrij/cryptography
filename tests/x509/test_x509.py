@@ -5300,6 +5300,46 @@ class TestCertificateSigningRequestBuilder:
         assert basic_constraints.value.ca is True
         assert basic_constraints.value.path_length == 2
 
+    def test_build_ca_request_with_mldsa_mlkem(self):
+        priv_key_cls = mldsa.MLDSA87PrivateKey
+        pub_key_cls = mldsa.MLDSA87PublicKey
+        sig_oid = SignatureAlgorithmOID.ML_DSA_87
+
+        private_key = priv_key_cls.generate()
+
+        request = (
+            x509.CertificateSigningRequestBuilder()
+            .subject_name(
+                x509.Name(
+                    [
+                        x509.NameAttribute(
+                            NameOID.STATE_OR_PROVINCE_NAME, "Texas"
+                        ),
+                    ]
+                )
+            )
+            # .add_extension(
+            #    x509.BasicConstraints(ca=True, path_length=2), critical=True
+            # )
+            .sign(private_key, None)
+        )
+
+        assert request.is_signature_valid
+        assert request.signature_algorithm_oid == sig_oid
+        assert request.signature_hash_algorithm is None
+        public_key = request.public_key()
+        assert isinstance(public_key, pub_key_cls)
+        subject = request.subject
+        assert isinstance(subject, x509.Name)
+        assert list(subject) == [
+            x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Texas"),
+        ]
+        # basic_constraints = request.extensions.get_extension_for_class(
+        #    x509.BasicConstraints
+        # )
+        # assert basic_constraints.value.ca is True
+        # assert basic_constraints.value.path_length == 2
+
     @pytest.mark.supported(
         only_if=lambda backend: backend.dsa_supported(),
         skip_message="Does not support DSA.",
@@ -5780,6 +5820,43 @@ class TestCertificateSigningRequestBuilder:
         pss = padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=32)
         with pytest.raises(TypeError):
             builder.sign(rsa_key_2048, None, rsa_padding=pss)
+
+
+class TestMLKEMCertificateRequest:
+    @pytest.mark.parametrize(
+        ("path", "loader_func"),
+        [
+            [
+                os.path.join("x509", "requests", "mlkem-mldsa.pem"),
+                x509.load_pem_x509_csr,
+            ],
+        ],
+    )
+    def test_load_pos_certificate_request(self, path, loader_func):
+        request = _load_cert(path, loader_func)
+        assert isinstance(request.signature_hash_algorithm, hashes.SHA384)
+        assert (
+            request.signature_algorithm_oid
+            == SignatureAlgorithmOID.ECDSA_WITH_SHA384
+        )
+        # public_key = request.public_key()
+        # assert isinstance(public_key, rsa.RSAPublicKey)
+        # assert (
+        #    request.public_key_algorithm_oid
+        #    == PublicKeyAlgorithmOID.RSAES_PKCS1_v1_5
+        # )
+        # subject = request.subject
+        # assert isinstance(subject, x509.Name)
+        # assert list(subject) == [
+        #    x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
+        #    x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "VA"),
+        #    x509.NameAttribute(NameOID.LOCALITY_NAME, "herndon"),
+        #    x509.NameAttribute(NameOID.COMMON_NAME, "Alice"),
+        # ]
+        # extensions = request.extensions
+        # assert isinstance(extensions, x509.Extensions)
+        # assert list(extensions) == []
+        # assert False
 
 
 @pytest.mark.supported(

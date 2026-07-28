@@ -265,8 +265,12 @@ pub(crate) fn create_x509_csr(
         rsa_padding.clone(),
     )?;
 
-    let spki_bytes = private_key
-        .call_method0(pyo3::intern!(py, "public_key"))?
+    let public_key = match builder.getattr(pyo3::intern!(py, "_public_key"))? {
+        pk if pk.is_none() => private_key.call_method0(pyo3::intern!(py, "public_key"))?,
+        pk => pk,
+    };
+
+    let spki_bytes = public_key
         .call_method1(
             pyo3::intern!(py, "public_bytes"),
             (
