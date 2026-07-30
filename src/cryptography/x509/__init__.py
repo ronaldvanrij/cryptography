@@ -5,10 +5,13 @@
 from __future__ import annotations
 
 from cryptography.x509 import certificate_transparency, oid, verification
-from cryptography.x509.base import (
+from cryptography.x509.attributes import (
     Attribute,
     AttributeNotFound,
     Attributes,
+    UnrecognizedAttribute,
+)
+from cryptography.x509.base import (
     Certificate,
     CertificateBuilder,
     CertificateRevocationList,
@@ -246,12 +249,14 @@ __all__ = [
     "RevokedCertificateBuilder",
     "SignatureAlgorithmOID",
     "SignedCertificateTimestamps",
+    "StatementOfPossession",
     "SubjectAlternativeName",
     "SubjectInformationAccess",
     "SubjectKeyIdentifier",
     "TLSFeature",
     "TLSFeatureType",
     "UniformResourceIdentifier",
+    "UnrecognizedAttribute",
     "UnrecognizedExtension",
     "UnsupportedGeneralNameType",
     "UserNotice",

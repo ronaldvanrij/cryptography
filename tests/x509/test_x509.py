@@ -5464,13 +5464,13 @@ class TestCertificateSigningRequestBuilder:
                     ]
                 )
             )
-            .add_attribute(
+            .add_attribute_raw(
                 x509.oid.AttributeOID.CHALLENGE_PASSWORD, challenge_password
             )
-            .add_attribute(
+            .add_attribute_raw(
                 x509.oid.AttributeOID.UNSTRUCTURED_NAME, unstructured_name
             )
-            .add_attribute(x509.oid.NameOID.LOCALITY_NAME, locality)
+            .add_attribute_raw(x509.oid.NameOID.LOCALITY_NAME, locality)
             .add_extension(
                 x509.ExtendedKeyUsage(
                     [
@@ -5510,7 +5510,7 @@ class TestCertificateSigningRequestBuilder:
         builder = (
             x509.CertificateSigningRequestBuilder()
             .subject_name(x509.Name([]))
-            .add_attribute(
+            .add_attribute_raw(
                 x509.oid.AttributeOID.CHALLENGE_PASSWORD,
                 b"\xbb\xad\x16\x9a\xac\xc9\x03i\xec\xcc\xdd6\xcbh\xfc\xf3",
             )
@@ -5521,23 +5521,23 @@ class TestCertificateSigningRequestBuilder:
     def test_add_attribute_bad_types(self):
         request = x509.CertificateSigningRequestBuilder()
         with pytest.raises(TypeError):
-            request.add_attribute(
+            request.add_attribute_raw(
                 typing.cast(typing.Any, b"not an oid"),
                 b"val",
             )
 
         with pytest.raises(TypeError):
-            request.add_attribute(
+            request.add_attribute_raw(
                 x509.oid.AttributeOID.CHALLENGE_PASSWORD,
                 typing.cast(typing.Any, 383),
             )
 
     def test_duplicate_attribute(self):
-        request = x509.CertificateSigningRequestBuilder().add_attribute(
+        request = x509.CertificateSigningRequestBuilder().add_attribute_raw(
             x509.oid.AttributeOID.CHALLENGE_PASSWORD, b"val"
         )
         with pytest.raises(ValueError):
-            request.add_attribute(
+            request.add_attribute_raw(
                 x509.oid.AttributeOID.CHALLENGE_PASSWORD, b"val2"
             )
 
@@ -5546,7 +5546,7 @@ class TestCertificateSigningRequestBuilder:
         builder = (
             x509.CertificateSigningRequestBuilder()
             .subject_name(x509.Name([]))
-            .add_attribute(
+            .add_attribute_raw(
                 x509.ObjectIdentifier("1.2.3.4"),
                 b"\x00\x00",
                 _tag=_ASN1Type.GeneralizedTime,
@@ -5565,7 +5565,7 @@ class TestCertificateSigningRequestBuilder:
             x509.Name([])
         )
         with pytest.raises(TypeError):
-            builder.add_attribute(
+            builder.add_attribute_raw(
                 x509.ObjectIdentifier("1.2.3.4"),
                 b"",
                 _tag=typing.cast(typing.Any, object()),

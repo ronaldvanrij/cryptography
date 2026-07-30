@@ -7,7 +7,6 @@ from __future__ import annotations
 import datetime
 import os
 import typing
-from collections.abc import Iterable
 
 from cryptography import utils
 from cryptography.hazmat.bindings._rust import x509 as rust_x509
@@ -28,11 +27,12 @@ from cryptography.hazmat.primitives.asymmetric.types import (
     CertificateIssuerPrivateKeyTypes,
     CertificatePublicKeyTypes,
 )
-from cryptography.x509.extensions import (
-    Extension,
-    ExtensionType,
-    _make_sequence_methods,
+from cryptography.x509.attributes import (
+    Attribute,
+    AttributeType,
+    UnrecognizedAttribute,
 )
+from cryptography.x509.extensions import Extension, ExtensionType
 from cryptography.x509.name import Name, _ASN1Type
 from cryptography.x509.oid import ObjectIdentifier
 
@@ -52,12 +52,6 @@ _AllowedHashTypes = typing.Union[
 ]
 
 
-class AttributeNotFound(Exception):
-    def __init__(self, msg: str, oid: ObjectIdentifier) -> None:
-        super().__init__(msg)
-        self.oid = oid
-
-
 def _reject_duplicate_extension(
     extension: Extension[ExtensionType],
     extensions: list[Extension[ExtensionType]],
@@ -69,12 +63,12 @@ def _reject_duplicate_extension(
 
 
 def _reject_duplicate_attribute(
-    oid: ObjectIdentifier,
-    attributes: list[tuple[ObjectIdentifier, bytes, int | None]],
+    attribute: Attribute[AttributeType],
+    attributes: list[Attribute[AttributeType]],
 ) -> None:
     # This is quadratic in the number of attributes
-    for attr_oid, _, _ in attributes:
-        if attr_oid == oid:
+    for a in attributes:
+        if a.oid == attribute.oid:
             raise ValueError("This attribute has already been set.")
 
 
@@ -90,62 +84,6 @@ def _convert_to_naive_utc_time(time: datetime.datetime) -> datetime.datetime:
         return time.replace(tzinfo=None) - offset
     else:
         return time
-
-
-class Attribute:
-    def __init__(
-        self,
-        oid: ObjectIdentifier,
-        value: bytes,
-        _type: int = _ASN1Type.UTF8String.value,
-    ) -> None:
-        self._oid = oid
-        self._value = value
-        self._type = _type
-
-    @property
-    def oid(self) -> ObjectIdentifier:
-        return self._oid
-
-    @property
-    def value(self) -> bytes:
-        return self._value
-
-    def __repr__(self) -> str:
-        return f"<Attribute(oid={self.oid}, value={self.value!r})>"
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Attribute):
-            return NotImplemented
-
-        return (
-            self.oid == other.oid
-            and self.value == other.value
-            and self._type == other._type
-        )
-
-    def __hash__(self) -> int:
-        return hash((self.oid, self.value, self._type))
-
-
-class Attributes:
-    def __init__(
-        self,
-        attributes: Iterable[Attribute],
-    ) -> None:
-        self._attributes = list(attributes)
-
-    __len__, __iter__, __getitem__ = _make_sequence_methods("_attributes")
-
-    def __repr__(self) -> str:
-        return f"<Attributes({self._attributes})>"
-
-    def get_attribute_for_oid(self, oid: ObjectIdentifier) -> Attribute:
-        for attr in self:
-            if attr.oid == oid:
-                return attr
-
-        raise AttributeNotFound(f"No {oid} attribute was found", oid)
 
 
 class Version(utils.Enum):
@@ -185,7 +123,7 @@ class CertificateSigningRequestBuilder:
         subject_name: Name | None = None,
         public_key: CertificatePublicKeyTypes | None = None,
         extensions: list[Extension[ExtensionType]] = [],
-        attributes: list[tuple[ObjectIdentifier, bytes, int | None]] = [],
+        attributes: list[Attribute[AttributeType]] = [],
     ):
         """
         Creates an empty X.509 certificate request (v1).
@@ -264,7 +202,7 @@ class CertificateSigningRequestBuilder:
             self._attributes,
         )
 
-    def add_attribute(
+    def add_attribute_raw(
         self,
         oid: ObjectIdentifier,
         value: bytes,
@@ -283,18 +221,40 @@ class CertificateSigningRequestBuilder:
         if _tag is not None and not isinstance(_tag, _ASN1Type):
             raise TypeError("tag must be _ASN1Type")
 
-        _reject_duplicate_attribute(oid, self._attributes)
-
         if _tag is not None:
             tag = _tag.value
         else:
             tag = None
 
+        extval = UnrecognizedAttribute(oid, value, tag)
+        attribute = Attribute(oid, extval)
+        _reject_duplicate_attribute(attribute, self._attributes)
+
         return CertificateSigningRequestBuilder(
             self._subject_name,
             self._public_key,
             self._extensions,
-            [*self._attributes, (oid, value, tag)],
+            [*self._attributes, attribute],
+        )
+
+    def add_attribute(
+        self,
+        extval: AttributeType,
+    ) -> CertificateSigningRequestBuilder:
+        """
+        Adds an X.509 attribute to the certificate request.
+        """
+        if not isinstance(extval, AttributeType):
+            raise TypeError("attribute must be an AttributeType")
+
+        attribute = Attribute(extval.oid, extval)
+        _reject_duplicate_attribute(attribute, self._attributes)
+
+        return CertificateSigningRequestBuilder(
+            self._subject_name,
+            self._public_key,
+            self._extensions,
+            [*self._attributes, attribute],
         )
 
     def sign(
